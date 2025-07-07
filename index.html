@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Los Guapos FC vs Los Feos FC</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 800px;
+      width: 100%;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    h1, h2, h3 {
+      text-align: center;
+    }
+    .info, .formulario {
+      margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    .formulario input, .formulario button, .formulario textarea {
+      padding: 8px;
+      margin: 5px;
+    }
+    .formulario input[type="date"] {
+      width: 140px;
+    }
+    .formulario textarea {
+      width: 100%;
+      height: 60px;
+    }
+    .small-text {
+      font-size: 0.9em;
+      color: gray;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Los Guapos FC (vs) Los Feos FC</h1>
+  <h2 id="global-score">Goles Guapos: 0 | Goles Feos: 0</h2>
+  <h3 id="victorias">Victorias - Guapos: 0 | Feos: 0</h3>
+  <div class="small-text" contenteditable>El fin de esta liga será en SEPTIEMBRE</div>
+
+  <div class="formulario">
+    <input type="date" id="fecha">
+    <input type="number" id="golesGuapos" placeholder="Goles Guapos">
+    <input type="number" id="golesFeos" placeholder="Goles Feos">
+    <textarea id="comentario" placeholder="Comentarios (faltas, goles en contra, duración...)"></textarea>
+    <button onclick="agregarPartido()">Añadir partido</button>
+  </div>
+
+  <table id="tabla">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Guapos</th>
+        <th>Feos</th>
+        <th>Comentarios</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+  import { getDatabase, ref, push, onValue, remove, set } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+
+  // Configuración de Firebase
+  const firebaseConfig = {
+    apiKey: "AIzaSyB-yDzItNAJVQfaZmQmFdGTM2iBUkElQw0",
+    authDomain: "ligaguapos.firebaseapp.com",
+    databaseURL: "https://ligaguapos-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "ligaguapos",
+    storageBucket: "ligaguapos.firebasestorage.app",
+    messagingSenderId: "860551413100",
+    appId: "1:860551413100:web:782b21730edf5269060749"
+  };
+
+  // Inicializar Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const partidosRef = ref(db, "partidos");
+
+  let partidos = [];
+
+  // Escuchar cambios en la base de datos
+  onValue(partidosRef, (snapshot) => {
+    const data = snapshot.val();
+    partidos = [];
+    for (let id in data) {
+      partidos.push({ id, ...data[id] });
+    }
+    actualizarTabla();
+  });
+
+  function actualizarTabla() {
+    partidos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    const tbody = document.querySelector("#tabla tbody");
+    tbody.innerHTML = "";
+    let totalGuapos = 0;
+    let totalFeos = 0;
+    let victoriasGuapos = 0;
+    let victoriasFeos = 0;
+
+    partidos.forEach((p, index) => {
+      totalGuapos += p.guapos;
+      totalFeos += p.feos;
+      if (p.guapos > p.feos) victoriasGuapos++;
+      else if (p.feos > p.guapos) victoriasFeos++;
+
+      const fila = document.createElement("tr");
+      fila.innerHTML = `
+        <td contenteditable oninput="editarCampo(${index}, 'fecha', this.innerText)">${p.fecha}</td>
+        <td contenteditable oninput="editarCampo(${index}, 'guapos', this.innerText)">${p.guapos}</td>
+        <td contenteditable oninput="editarCampo(${index}, 'feos', this.innerText)">${p.feos}</td>
+        <td contenteditable oninput="editarCampo(${index}, 'comentario', this.innerText)">${p.comentario || ''}</td>
+        <td><button onclick="borrarPartido(${index})">Borrar</button></td>
+      `;
+      tbody.appendChild(fila);
+    });
+
+    document.getElementById("global-score").innerText = `Goles Guapos: ${totalGuapos} | Goles Feos: ${totalFeos}`;
+    document.getElementById("victorias").innerText = `Victorias - Guapos: ${victoriasGuapos} | Feos: ${victoriasFeos}`;
+  }
+
+  function agregarPartido() {
+    const fecha = document.getElementById("fecha").value;
+    const golesGuapos = parseInt(document.getElementById("golesGuapos").value);
+    const golesFeos = parseInt(document.getElementById("golesFeos").value);
+    const comentario = document.getElementById("comentario").value;
+
+    if (!fecha || isNaN(golesGuapos) || isNaN(golesFeos)) return;
+
+    push(partidosRef, {
+      fecha,
+      guapos: golesGuapos,
+      feos: golesFeos,
+      comentario
+    });
+
+    document.getElementById("fecha").value = "";
+    document.getElementById("golesGuapos").value = "";
+    document.getElementById("golesFeos").value = "";
+    document.getElementById("comentario").value = "";
+  }
+
+  function borrarPartido(index) {
+    const partido = partidos[index];
+    if (partido.id) {
+      const partidoRef = ref(db, "partidos/" + partido.id);
+      remove(partidoRef);
+    }
+  }
+
+  function editarCampo(index, campo, valor) {
+    const partido = partidos[index];
+    if (!partido.id) return;
+
+    const partidoRef = ref(db, "partidos/" + partido.id);
+    const nuevoValor = campo === 'guapos' || campo === 'feos' ? parseInt(valor) || 0 : valor;
+
+    set(partidoRef, {
+      ...partido,
+      [campo]: nuevoValor
+    });
+  }
+
+  // Hacer funciones accesibles desde HTML
+  window.agregarPartido = agregarPartido;
+  window.borrarPartido = borrarPartido;
+  window.editarCampo = editarCampo;
+</script>
+</body>
+</html>
+
